@@ -1,6 +1,14 @@
+#!/usr/bin/env node
+
 const regserver = { host: '::1', port: 49501 };
 const regclient_name = process.env.REGCLI_NAME || 'gpredict';
 const regrpccli_path = process.env.REGRPCCLI || './regrpccli';
+const gs = process.env.GS;
+
+if (!gs) {
+	console.error('No GS specified');
+	process.exit(1);
+}
 
 const net = require('net');
 const spawn = require('child_process').spawn;
@@ -85,10 +93,10 @@ const session = sock => {
 			if (/^F/.test(data)) {
 				const value = data.match(/\d+/)[0];
 				if (RX) {
-					regs.set('blue', 'RX frequency', value);
+					regs.set(gs, 'RX frequency', value);
 					console.log(`RX <- ${value}`);
 				} else if (TX) {
-					regs.set('blue', 'TX frequency', value);
+					regs.set(gs, 'TX frequency', value);
 					console.log(`TX <- ${value}`);
 				}
 			}
