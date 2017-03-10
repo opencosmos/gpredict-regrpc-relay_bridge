@@ -1,100 +1,127 @@
-var net = require('net');
+const net = require('net');
 
-var HOST = '127.0.0.1';
-var PORT_gp = 3533;
-var PORT_hamlib = 4533;
-var AZ, EL;
-var readAZ;
-var readAZEL = "0\n1";
+const controller = { host: '::1', port: 4533 };
+const predictor = { host: '::1', port: 3533 };
 
-// File with calibration values taken experimentally
-var calibration = require('./calibrationParameters.json');
+const no_controller = !!process.env.no_controller;
 
+/*
+ * File with calibration values taken experimentally
+ *
+ * Used for translation from real value to desired value using JSON file in order to cheat GPredict
+ */
+const calibration = require('./calibrationParameters.json');
 
-/*** Client to communicate with hamlib ***/
-var client = new net.Socket();
-client.connect(PORT_hamlib, HOST, function() {
+/* Client to communicate with hamlib */
+const client = no_controller ? null : new net.Socket();
 
-    console.log('CLIENT CONNECTED TO: ' + HOST + ':' + PORT_hamlib);
+if (!no_controller) {
+	client.connect(controller.port, controller.host, () => console.log('Controller connected'));
+}
 
-});
-
-
-/* Close socket when quitting */
-process.on('SIGINT', function() {
-	// Close the client socket completely
-	client.destroy();
+process.on('SIGINT', () => {
+	if (!no_controller) {
+		/* Close the client socket */
+		client.destroy();
+	}
 	process.exit();
 });
 
-/*** Server to communicate with Gpredict ***/
+const send_to_controller = cmd => {
+	if (!no_controller) {
+		client.write(cmd);
+	}
+	console.log(`Sent to controller: ${JSON.stringify(cmd)}`);
+};
 
-// Create a server instance, and chain the listen function to it
-// The function passed to net.createServer() becomes the event handler for the 'connection' event
-// The sock object the callback function receives UNIQUE for each connection
-net.createServer(function(sock) {
+let end_previous;
 
-    client.on('data', function(data) {
+/* gPredict server connection handler */
+const session = sock => {
 
-    console.log('DATA from controller: ' + data);
-    data = data.toString('utf8');
-    
-    // If blocks in order to handle different obtained answers fromw hamlib
-    if (data.match(/^([\w\-]+)/)[0] == "get_pos" || !/^[a-zA-Z]/.test(data)) {
-    	readAZ = data.match(/[0-9]*\.?[0-9]+/g)[0];
-    	readAZ = parseInt(readAZ);
-    	// Translation from real value to desired value using JSON file in order to cheat GPredict
-    	readAZ = calibration.desired[calibration.real.indexOf(AZ)];
-    	readAZEL = readAZ +"\n" + data.match(/[0-9]*\.?[0-9]+/g)[1];
-    	console.log("readAZEL", readAZEL);
-    }
-    else  {
-    	console.error("Unhandled Command from Controller")
-    }	
+	/* Close any previous gpredict connection */
+	if (end_previous) {
+		end_previous();
+	}
+	end_previous = () => {
+		if (!no_controller) {
+			client.removeAllListeners();
+		}
+		sock.removeAllListeners();
+		sock.close();
+	};
 
+	console.log(`gpredict connected on ${sock.remoteAddress}:${sock.remotePort}`);
+
+	let azel = '0\n1';
+
+	const send_to_predict = data => {
+		sock.write(data);
+		console.log(`Sent to gpredict: ${JSON.stringify(data)}`);
+	};
+
+	/* Data from rotator */
+	const on_controller_data = rawdata => {
+
+		const data = rawdata.toString('utf8');
+		console.log(`Received from controller: ${data}`);
+
+		/* If blocks in order to handle different obtained answers fromw hamlib */
+		if (data.match(/^([\w-]+)/)[0] === 'get_pos' || !/^[a-zA-Z]/.test(data)) {
+			const read_az = parseInt(data.match(/[0-9]*\.?[0-9]+/g)[0], 10);
+			const az = calibration.desired[calibration.real.indexOf(read_az)];
+			const el = data.match(/[0-9]*\.?[0-9]+/g)[1];
+			console.log(`azel=(${az}, ${el})`);
+			azel = `${az}\n${el}`;
+		} else {
+			console.error('Unhandled Command from Controller');
+		}
+
+	};
+
+	/* Data from gpredict */
+	const on_gpredict_data = rawdata => {
+		const data = rawdata.toString('utf8');
+
+		console.log(`Received from gpredict: ${data}`);
+
+		if (/^[a-z]/.test(data)) {
+			/* Lowercase commands or getters */
+			if (/p/.test(data)) {
+				send_to_controller('p');
+				send_to_predict(azel);
+			}
+		} else if (/^[A-Z]/.test(data)) {
+			/* Uppercase commands or setters */
+			if (/^P/.test(data)) {
+				const desired_az = parseInt(data.match(/[0-9]*\.?[0-9]+/g)[0], 10);
+				const real_az = calibration.real[calibration.desired.indexOf(desired_az)];
+				const real_el = data.match(/[0-9]*\.?[0-9]+/g)[1];
+				send_to_controller(`P ${real_az} ${real_el}`);
+				/* Return of Successfully Sent Command */
+				send_to_predict('RPRT 0');
+			} else {
+				console.error(`Unhandled Command: ${JSON.stringify(data)}`);
+			}
+		}
+
+	};
+
+	if (!no_controller) {
+		client.on('data', on_controller_data);
+	}
+
+	sock.on('data', on_gpredict_data);
+
+	/* Add a 'close' event handler to this instance of socket */
+	sock.on('close', () => {
+		console.log(`gpredict connection closed for ${sock.remoteAddress} ${sock.remotePort}`);
 	});
-    // We have a connection - a socket object is assigned to the connection automatically
-    console.log('CONNECTION TO SERVER: ' + sock.remoteAddress +':'+ sock.remotePort);
-    
-    // Add a 'data' event handler to this instance of socket
-    sock.on('data', function(data) {
-        
-        console.log('DATA from Gpredict' + ': ' + data);
-        data = data.toString('utf8');
 
-        /*** Lowercase commands or getters ***/
-        if ( /^[a-z]/.test(data) ) {
-            if (/p/.test(data)) {
-            	console.log("Send to controller: p")
-            	client.write("p")
-            	sock.write(readAZEL);
-            }
-        }
-        /*** Uppercase commands or setters ***/
-        else if ( /^[A-Z]/.test(data) ) {
-            if(/^P/.test(data)) {
-                AZ = data.match(/[0-9]*\.?[0-9]+/g)[0];
-	            AZ = parseInt(AZ);
-	            // Translation from desired to real value in order to cheat the rotator
-	            AZ  = calibration.real[calibration.desired.indexOf(AZ)];
-                
-                EL = data.match(/[0-9]*\.?[0-9]+/g)[1];
+};
 
-	            var command = "P " + AZ +" " + EL;
+const server = net.createServer(session);
 
-	            console.log('Send to controller: '+command)
-	            client.write(command)
-	            // Return of Successfully Sent Command
-	            sock.write('RPRT 0');	            
-            }
-            else {console.error("Unhandled Command")}
-        }
-        
-    });
-    
-    // Add a 'close' event handler to this instance of socket
-    sock.on('close', function(data) {
-        console.log('CLOSED: ' + sock.remoteAddress +' '+ sock.remotePort);
-    });    
-}).listen(PORT_gp, HOST);
-console.log('Server listening on ' + HOST +':'+ PORT_gp);
+server.listen(predictor.port, predictor.host);
+
+console.log(`Waiting for gpredict to connect on ${predictor.host}:${predictor.port}`);
