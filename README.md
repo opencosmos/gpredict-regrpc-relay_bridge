@@ -1,12 +1,5 @@
-# TCP socket-interface
+# Adpter to use gPredict to supply Doppler corrections to radio via register store RPC interface over relay network
 
-Terrassa Ground Station (UPC - ESEIAAT) script designed to handle communication with GPredict simulating the behaviour of hamlib rigctld.
+GS=<name-of-gs> ./regrpc_adapter.js
 
-### Todos
-
- - 
-
-License
-----
-
-MIT
+ - Original program created by Boyan Naydenov
