@@ -94,10 +94,10 @@ const session = sock => {
 				const value = data.match(/\d+/)[0];
 				if (RX) {
 					regs.set(gs, 'RX frequency', value);
-					console.log(`RX <- ${value}`);
+					console.log(`  [${new Date().toISOString()}] RX <- ${value}`);
 				} else if (TX) {
 					regs.set(gs, 'TX frequency', value);
-					console.log(`TX <- ${value}`);
+					console.log(`  [${new Date().toISOString()}] TX <- ${value}`);
 				}
 			}
 			/* Acknowledge to gPredict */
