@@ -41,4 +41,5 @@ sleep 1
 		$key = $1 if m{^Key=(.*)$};
 		print "$node> $key: $1\n" if m{^Value=(.*)$};
 	}
-	print STDERR "Query failed" if not defined $key;'
+	print STDERR "Query failed" if not defined $key;' \
+| sort -u
