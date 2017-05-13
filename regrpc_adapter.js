@@ -18,7 +18,7 @@ const regrpccli = spawn(regrpccli_path, [regserver.host, regserver.port, regclie
 regrpccli.stdin.setEncoding = 'utf-8';
 regrpccli.on('close', code => console.log(`regrpccli process exited with code ${code}`));
 
-const bind = { host: '127.0.0.1', port: 6969 };
+const bind = { host: '127.0.0.1', port: process.env.PORT || 6969 };
 
 const regs = {
 	_sequence: 0,
