@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-if ! (( $# )); then
+if [ "${1:-}" == '-h' ] || [ "${1:--}" == '--help' ] || (( $# > 1 )); then
 	printf >&2 -- "%s\n" \
 		"Syntax: $0 <target>" \
 		"Example: $0 gs:terrassa"
 	exit 1
 fi
 
-declare -r target="$1"
+declare -r target="${1:-gs*}"
 
 declare -r localname="$(echo "$(id -nu)-$(hostname -s)" | sed -e 's/[^a-zA-Z0-9_]/_/g;')"
 
