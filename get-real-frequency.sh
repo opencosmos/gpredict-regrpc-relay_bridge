@@ -21,11 +21,21 @@ printf -- "%s\n" \
 	"Key=RX frequency" \
 	"SEND" \
 	"$target" \
+	"Sequence=1" \
+	"Command=Read" \
+	"Key=RX frequency shift" \
+	"SEND" \
+	"$target" \
 	"Sequence=2" \
 	"Command=Read" \
 	"Key=TX frequency" \
+	"SEND" \
+	"$target" \
+	"Sequence=1" \
+	"Command=Read" \
+	"Key=TX frequency shift" \
 	"SEND"
-sleep 1
+sleep 2
 ) | ./regrpccli ::1 49501 "$localname" \
 | perl -e '
 	use strict;
