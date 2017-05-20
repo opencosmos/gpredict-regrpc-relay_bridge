@@ -1,0 +1,25 @@
+{
+  "name": "doppler-gpredict",
+  "version": "1.0.0",
+  "description": "Bridge between gPredict and the relay network",
+  "main": "regrpc_adapter.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opencosmos/socket-interface.git"
+  },
+  "author": "Mark K Cowan, Boyan Naydenov",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/opencosmos/socket-interface/issues"
+  },
+  "homepage": "https://github.com/opencosmos/socket-interface#readme",
+  "dependencies": {
+    "lodash": "^4.17.4",
+    "random": "github:battlesnake/randomjs",
+    "relay": "github:opencosmos/relay",
+    "sequencer": "github:battlesnake/sequencer.js"
+  }
+}

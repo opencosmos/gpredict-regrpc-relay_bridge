@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
-const regserver = { host: '::1', port: 49501 };
-const regclient_name = process.env.REGCLI_NAME || 'gpredict';
-const regrpccli_path = process.env.REGRPCCLI || './regrpccli';
+const RegRPC = require('./regrpc');
+
 const gs = process.env.GS;
 
 if (!gs) {
@@ -11,48 +10,21 @@ if (!gs) {
 }
 
 const net = require('net');
-const spawn = require('child_process').spawn;
 
-const regrpccli = spawn(regrpccli_path, [regserver.host, regserver.port, regclient_name], { stdio: ['pipe', 1, 2] });
+const gpredict = { host: '127.0.0.1', port: process.env.PORT || 6969 };
 
-regrpccli.stdin.setEncoding = 'utf-8';
-regrpccli.on('close', code => console.log(`regrpccli process exited with code ${code}`));
+const random_id = require('random').chars('0123456789abcdef');
 
-const bind = { host: '127.0.0.1', port: process.env.PORT || 6969 };
+const regs = new RegRPC({ name: 'gp:' + random_id(4) });
 
-const regs = {
-	_sequence: 0,
-	send: (target, data) => {
-		const lines = [];
-		lines.push(target);
-		Object.keys(data).forEach(key => lines.push(`${key}=${data[key]}`));
-		const seq = ++regs._sequence;
-		lines.push(`Sequence=${seq}`);
-		lines.push('SEND');
-		const msg = lines.map(s => `${s}\n`).join('');
-		regrpccli.stdin.write(msg);
-		return seq;
-	},
-	get: (target, key) => regs.send(target, {
-		Command: 'Read',
-		Key: key
-	}),
-	set: (target, key, value) => regs.send(target, {
-		Command: 'Write',
-		Key: key,
-		Value: value
-	})
-};
-
-const session = sock => {
+const session = (sock, rx_freq, tx_freq) => {
 
 	let RX = false;
 	let TX = false;
 
-	let TX_freq = 435800000;
-	let RX_freq = 435800000;
-
 	console.log(`gPredict connection from ${sock.remoteAddress}:${sock.remotePort}`);
+
+	const err = msg => error => console.error(`Failed to ${msg}: ${error.stack}`);
 
 	sock.on('data', rawdata => {
 
@@ -77,6 +49,9 @@ const session = sock => {
 			RX = false;
 			TX = true;
 		}
+		console.log('------------');
+		console.log(data);
+		console.log('------------');
 		if (/^[a-z]/.test(data)) {
 			/* gPredict getters dummmy response */
 			if (/t/.test(data) && RX) {
@@ -84,20 +59,26 @@ const session = sock => {
 			} else if (/t/.test(data) && TX) {
 				sock.write('1');
 			} else if (/f/.test(data) && RX) {
-				sock.write(String(RX_freq));
+				sock.write(String(rx_freq));
 			} else if (/f/.test(data) && TX) {
-				sock.write(String(TX_freq));
+				sock.write(String(tx_freq));
 			}
 		} else if (/^[A-Z]/.test(data)) {
 			/* gPredict setters */
 			if (/^F/.test(data)) {
 				const value = data.match(/\d+/)[0];
 				if (RX) {
-					regs.set(gs, 'RX frequency', value);
-					console.log(`  [${new Date().toISOString()}] RX <- ${value}`);
+					const shift = value - rx_freq;
+					regs.set(gs, 'RX frequency shift', shift)
+						.then(
+							() => console.info(`RX <- ${rx_freq} + ${shift}`),
+							err('set RX frequency shift'));
 				} else if (TX) {
-					regs.set(gs, 'TX frequency', value);
-					console.log(`  [${new Date().toISOString()}] TX <- ${value}`);
+					const shift = value - tx_freq;
+					regs.set(gs, 'TX frequency shift', shift)
+						.then(
+							() => console.info(`TX <- ${tx_freq} + ${shift}`),
+							err('set TX frequency shift'));
 				}
 			}
 			/* Acknowledge to gPredict */
@@ -109,8 +90,10 @@ const session = sock => {
 
 };
 
-const server = net.createServer(session);
-
-server.listen(bind.port, bind.host);
-
-console.log(`Server listening on ${bind.host}:${bind.port}`);
+regs.on('open', () => Promise.all([regs.get(gs, 'RX frequency'), regs.get(gs, 'TX frequency')])
+	.then(([rx, tx]) => {
+		console.info(`rx=${rx} tx=${tx}`);
+		const server = net.createServer(socket => session(socket, rx, tx));
+		server.listen(gpredict.port, gpredict.host);
+		console.log(`Server listening on ${gpredict.host}:${gpredict.port}`);
+	}));
