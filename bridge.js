@@ -29,61 +29,64 @@ const session = (regs, sock) => {
 	let prx = ref_freq;
 	let ptx = ref_freq;
 
-	const handle_cmd = async data => {
-		/*
-		 * V Sub for RX and V Main for TX (according to hamlib notation)
-		 *
-		 * The follwoing sets of conditional statements are done following the
-		 * hamlib protocol for rigctld
-		 *
-		 * The set of rules are prepared for a full duplex "gpredict"
-		 * configuration
-		 */
-		if (/Sub/.test(data)) {
-			/* RX mode */
-			RX = true;
-			TX = false;
-		} else if (/Main/.test(data)) {
-			/* TX mode */
-			RX = false;
-			TX = true;
-		}
-		if (/^[tf]/.test(data)) {
-			/* gPredict getters dummmy response */
-			if (/t/.test(data) && RX) {
-				sock.write('0');
-			} else if (/t/.test(data) && TX) {
-				sock.write('1');
-			} else if (/f/.test(data) && RX) {
-				sock.write(String(prx));
-			} else if (/f/.test(data) && TX) {
-				sock.write(String(ptx));
+	const handle_cmd = async ([cmd, data = null]) => {
+		switch (cmd) {
+		case 'V':
+			switch (data) {
+			case 'Sub':
+				/* RX mode */
+				RX = true;
+				TX = false;
+				break;
+			case 'Main':
+				/* TX mode */
+				RX = false;
+				TX = true;
+				break;
 			}
-		} else if (/^[F]/.test(data)) {
-			/* gPredict setters */
-			try {
-				if (/^F/.test(data)) {
-					const value = data.match(/\d+/)[0];
-					if (RX) {
-						prx = value;
-						await regs.set('RX relative frequency shift', value / ref_freq - 1);
-					} else if (TX) {
-						ptx = value;
-						await regs.set('TX relative frequency shift', value / ref_freq - 1);
-					}
-				}
-			} finally {
-				/* Acknowledge to gPredict */
-				sock.write('RPRT 0');
+			break;
+		case 'f':
+			sock.write(String(RX ? prx : TX ? ptx : '-'));
+			break;
+		case 't':
+			sock.write(String(RX ? 0 : TX ? 1 : '-'));
+			break;
+		case 'F':
+			if (RX) {
+				prx = data;
+				await regs.set('RX relative frequency shift', data / ref_freq - 1);
+			} else if (TX) {
+				ptx = data;
+				await regs.set('TX relative frequency shift', data / ref_freq - 1);
 			}
+			break;
 		}
 	};
 
+	let buf = '';
+
+	const read_command = () => {
+		const nl = buf.indexOf('\n');
+		if (nl === -1) {
+			return null;
+		}
+		const cmd = buf.substr(0, nl);
+		buf = buf.substr(nl + 1);
+		return cmd;
+	};
+
 	const handle_cmd_wrap = async rawdata => {
-		try {
-			await handle_cmd(rawdata.toString('utf8'));
-		} catch (e) {
-			/* Null */
+		buf += rawdata.toString('utf8');
+		let cmd;
+		while ((cmd = read_command()) !== null) {
+			if (!cmd.length) {
+				continue;
+			}
+			try {
+				await handle_cmd(cmd.split(/\s+/)).catch(() => null);
+			} finally {
+				sock.write('RPRT 0');
+			}
 		}
 	};
 
