@@ -26,6 +26,9 @@ const session = (regs, sock) => {
 	let RX = false;
 	let TX = false;
 
+	let prx = ref_freq;
+	let ptx = ref_freq;
+
 	const handle_cmd = async data => {
 		/*
 		 * V Sub for RX and V Main for TX (according to hamlib notation)
@@ -45,25 +48,27 @@ const session = (regs, sock) => {
 			RX = false;
 			TX = true;
 		}
-		if (/^[a-z]/.test(data)) {
+		if (/^[tf]/.test(data)) {
 			/* gPredict getters dummmy response */
 			if (/t/.test(data) && RX) {
 				sock.write('0');
 			} else if (/t/.test(data) && TX) {
 				sock.write('1');
 			} else if (/f/.test(data) && RX) {
-				sock.write(String(0));
+				sock.write(String(prx));
 			} else if (/f/.test(data) && TX) {
-				sock.write(String(0));
+				sock.write(String(ptx));
 			}
-		} else if (/^[A-Z]/.test(data)) {
+		} else if (/^[F]/.test(data)) {
 			/* gPredict setters */
 			try {
 				if (/^F/.test(data)) {
 					const value = data.match(/\d+/)[0];
 					if (RX) {
+						prx = value;
 						await regs.set('RX relative frequency shift', value / ref_freq - 1);
 					} else if (TX) {
+						ptx = value;
 						await regs.set('TX relative frequency shift', value / ref_freq - 1);
 					}
 				}
