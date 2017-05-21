@@ -12,6 +12,8 @@ async function run() {
 	const regrpc = (await RegRPC.create({ name: `gp:${process.env.INSTANCE || random_id(8)}` }));
 	const regs = regrpc.bind(gs);
 	const probe = () => Promise.all([
+		regs.get('RSSI', false),
+		regs.get('Noise floor', false),
 		regs.get('RX rate', false),
 		regs.get('TX rate', false),
 		regs.get('RX gain', false),
@@ -20,6 +22,10 @@ async function run() {
 		regs.get('TX frequency', false),
 		regs.get('RX frequency shift', false),
 		regs.get('TX frequency shift', false),
+		regs.get('RX packets', false),
+		regs.get('TX packets', false),
+		regs.get('Last RX time', false),
+		regs.get('Last TX time', false),
 	]).catch(() => null);
 	const handle_response = (remote, res) => {
 		if (res.Error) {
