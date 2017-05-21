@@ -29,37 +29,29 @@ const session = (regs, sock) => {
 	let prx = ref_freq;
 	let ptx = ref_freq;
 
-	const handle_cmd = async ([cmd, data = null]) => {
+	const handle_cmd = ([cmd, data = null]) => {
 		switch (cmd) {
 		case 'V':
-			switch (data) {
-			case 'Sub':
-				/* RX mode */
-				RX = true;
-				TX = false;
-				break;
-			case 'Main':
-				/* TX mode */
-				RX = false;
-				TX = true;
-				break;
-			}
-			break;
+			RX = data === 'Sub';
+			TX = data === 'Main';
+			return 'RPRT 0';
 		case 'f':
-			sock.write(String(RX ? prx : TX ? ptx : '-'));
-			break;
+			return RX ? prx : TX ? ptx : '-';
 		case 't':
-			sock.write(String(RX ? 0 : TX ? 1 : '-'));
-			break;
+			return RX ? 0 : TX ? 1 : '-';
 		case 'F':
 			if (RX) {
 				prx = data;
-				await regs.set('RX relative frequency shift', data / ref_freq - 1);
+				regs.set('RX relative frequency shift', data / ref_freq - 1)
+					.catch(() => null);
 			} else if (TX) {
 				ptx = data;
-				await regs.set('TX relative frequency shift', data / ref_freq - 1);
+				regs.set('TX relative frequency shift', data / ref_freq - 1)
+					.catch(() => null);
 			}
-			break;
+			return 'RPRT 0';
+		default:
+			return 'RPRT -1';
 		}
 	};
 
@@ -75,18 +67,11 @@ const session = (regs, sock) => {
 		return cmd;
 	};
 
-	const handle_cmd_wrap = async rawdata => {
+	const handle_cmd_wrap = rawdata => {
 		buf += rawdata.toString('utf8');
 		let cmd;
 		while ((cmd = read_command()) !== null) {
-			if (!cmd.length) {
-				continue;
-			}
-			try {
-				await handle_cmd(cmd.split(/\s+/)).catch(() => null);
-			} finally {
-				sock.write('RPRT 0');
-			}
+			sock.write(`${handle_cmd(cmd.split(/\s+/))}\n`);
 		}
 	};
 
