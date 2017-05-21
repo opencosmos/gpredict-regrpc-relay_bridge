@@ -33,6 +33,8 @@ async function run() {
 	const regs = regrpc.bind(gs);
 	const probe = () => Promise.all([
 		regs.get('RSSI', false),
+		regs.get('RSSI min', false),
+		regs.get('RSSI max', false),
 		regs.get('Noise floor', false),
 		regs.get('RX rate', false),
 		regs.get('TX rate', false),
@@ -44,6 +46,7 @@ async function run() {
 		regs.get('TX frequency shift', false),
 		regs.get('RX packets', false),
 		regs.get('TX packets', false),
+		regs.get('Time', false),
 		regs.get('Last RX time', false),
 		regs.get('Last TX time', false),
 	]).catch(() => null);
@@ -79,11 +82,18 @@ async function run() {
 					}
 					k += '\x1b[22m';
 					let fmt = '';
-					if (/\btime$/.test(key)) {
-						const when = new Date(+value * 1000);
-						const dt = (new Date() - when) / 1000;
-						fmt = si(dt, 's', { signcol: true, no_prefix: true, precision: 0 });
-						fmt += ` ago, at ${when.toUTCString().replace(/\bGMT\b/, 'UTC')}`;
+					if (/\bTime$/.test(key)) {
+						fmt = new Date(+value * 1000).toUTCString().replace(/\bGMT\b/, 'UTC');
+					} else if (/\btime$/.test(key)) {
+						if (value === '-inf') {
+							fmt = 'never';
+						} else {
+							const time = new Date(+_.find(cached, { gs: name, key: 'Time' }).value * 1000);
+							const when = new Date(+value * 1000);
+							const dt = (+time - +when) / 1000;
+							fmt = si(dt, 's', { signcol: true, no_prefix: true, precision: 0 });
+							fmt += ` ago, at ${when.toUTCString().replace(/\bGMT\b/, 'UTC')}`;
+						}
 					} else if (/\b(frequency|rate)\b/.test(key)) {
 						fmt = si(+value, 'Hz', { signcol: true, sign: /\bshift\b/.test(key), precision: 3 });
 					} else if (/\b(gain|RSSI|floor)\b/.test(key)) {
