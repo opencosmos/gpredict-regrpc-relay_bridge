@@ -4,7 +4,7 @@ const gpredict_default_port = 6969;
 
 const default_ref_freq = 145.890e6;
 
-const RegRPC = require('./regrpc');
+const RegRPC = require('regrpccli');
 const net = require('net');
 const random_id = require('random').chars('0123456789abcdef');
 

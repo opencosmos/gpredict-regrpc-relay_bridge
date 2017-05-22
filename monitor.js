@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const _ = require('lodash');
-const RegRPC = require('./regrpc');
+const RegRPC = require('regrpccli');
 const Cache = require('./monitor_cache');
 
 const gs = process.env.GS || process.argv[2] || 'gs:*';
