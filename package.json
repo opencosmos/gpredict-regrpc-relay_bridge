@@ -17,10 +17,7 @@
   },
   "homepage": "https://github.com/opencosmos/socket-interface#readme",
   "dependencies": {
-    "lodash": "^4.17.4",
     "random": "github:battlesnake/randomjs",
-    "regrpccli": "github:opencosmos/regrpccli.js",
-    "relay": "github:opencosmos/relay",
-    "sequencer": "github:battlesnake/sequencer.js"
+    "regrpccli": "github:opencosmos/regrpccli.js"
   }
 }
