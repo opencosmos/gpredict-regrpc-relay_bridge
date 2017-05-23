@@ -9,5 +9,5 @@ deploy:
 	git tag --force live
 
 .PHONY: deploy-monitor
-deploy-monitor: monitor.js
-	rsync -azl $< bridge@tracking.open-cosmos.com:bin/
+deploy-monitor: monitor.js monitor_cache.js node_modules/
+	rsync -azl $^ bridge@tracking.open-cosmos.com:bin/

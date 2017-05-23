@@ -74,6 +74,8 @@ async function run() {
 		regs.get('TX rate', false),
 		regs.get('RX gain', false),
 		regs.get('TX gain', false),
+		regs.get('RX bandwidth', false),
+		regs.get('TX bandwidth', false),
 		regs.get('RX LO offset', false),
 		regs.get('TX LO offset', false),
 		regs.get('RX frequency', false),
@@ -126,7 +128,7 @@ async function run() {
 						}
 					} else if (/\b(RSSI history)\b/.test(key)) {
 						fmt = `[\x1b[9m${format_history(value)}\x1b[29m]`;
-					} else if (/\b(frequency|rate|LO offset)\b/.test(key)) {
+					} else if (/\b(frequency|rate|LO offset|bandwidth)\b/.test(key)) {
 						fmt = si(+value, 'Hz', { signcol: true, sign: /\b(shift|offset)\b/.test(key), precision: 3 });
 					} else if (/\b(gain|RSSI|floor)\b/.test(key)) {
 						fmt = si(+value, 'dB', { signcol: true, no_prefix: true });
@@ -174,8 +176,8 @@ async function run() {
 		const data = out.map(s => `${s}\n`).join('');
 		process.stdout.write(data);
 	};
-	setInterval(probe, 500);
-	setInterval(update, 500);
+	setInterval(probe, 1000);
+	setInterval(update, 1000);
 	process.stdout.on('resize', update);
 	regrpc.on('response', handle_response);
 }
