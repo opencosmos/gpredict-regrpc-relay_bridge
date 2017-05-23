@@ -27,6 +27,36 @@ const si = (x, unit, { sign = false, signcol = false, precision = 2, width = 8, 
 	return `${s}${num}${pad} ${unit_fmt(`${prefixes[l + 7].trim()}${unit}`)}`;
 };
 
+const unansi = x => x.replace(/\x1b\[[^m]+m/g, '');
+
+const pad = (x, width, ch = ' ') => new Array(Math.max(0, 1 + width - unansi(x).length)).join(ch);
+
+function format_history(str) {
+	const data = str.split(';')
+		.filter(s => s)
+		.map(s => {
+			const [time, min, mean, max] = s.split(',');
+			return {
+				time: new Date(time * 1000),
+				min: parseFloat(min),
+				mean: parseFloat(mean),
+				max: parseFloat(max)
+			};
+		});
+	while (data.length > 30) {
+		data.shift();
+	}
+	const min = Math.min(...data.map(x => x.min));
+	const max = Math.max(...data.map(x => x.max), min + 6);
+	for (let i = 0; i < data.length; ++i) {
+		data[i] = (data[i].mean - min) / (max - min);
+	}
+	const braille = ' ⡀⣀⣄⣤⣦⣶⣿⣷⣿';
+	const ascii = ' ¸.·´¨';
+	const img = ascii;
+	return data.map(x => img[Math.round(x * (img.length - 1))]).join('');
+}
+
 async function run() {
 	const cache = new Cache();
 	const regrpc = (await RegRPC.create({ name: `gp:${process.env.INSTANCE || random_id(8)}` }));
@@ -35,11 +65,17 @@ async function run() {
 		regs.get('RSSI', false),
 		regs.get('RSSI min', false),
 		regs.get('RSSI max', false),
+		regs.get('RSSI history (1s)', false),
+		regs.get('RSSI history (5s)', false),
 		regs.get('Noise floor', false),
+		regs.get('RX antenna', false),
+		regs.get('TX antenna', false),
 		regs.get('RX rate', false),
 		regs.get('TX rate', false),
 		regs.get('RX gain', false),
 		regs.get('TX gain', false),
+		regs.get('RX LO offset', false),
+		regs.get('TX LO offset', false),
 		regs.get('RX frequency', false),
 		regs.get('TX frequency', false),
 		regs.get('RX frequency shift', false),
@@ -57,30 +93,24 @@ async function run() {
 		cache.set(remote, res.Key, res.Value);
 	};
 	const update = () => {
-		const out = [`\x1b[H\x1b[J${new Date().toISOString()}`];
-		out.push('');
 		const cached = cache.getall();
-		if (!cached.length) {
-			out.push('(no data available)');
-		}
-		_(cached)
+		const blocks = !cached.length ? ['(no data available)'] : _(cached)
 			.sortBy(['gs', 'key'])
 			.groupBy('gs')
 			.toPairs()
-			.each(([name, kv]) => {
+			.map(([name, kv]) => {
+				const out = [];
 				out.push(`\x1b[1m${name}\x1b[0m`);
 				let c = null;
 				const firstword = s => (s || '').match(/^\S*/)[0];
 				for (const { key, value } of kv) {
-					if (c !== null && c !== firstword(key)) {
+					if (c !== firstword(key)) {
 						out.push('');
 					}
 					c = firstword(key);
-					let k = `  ${key} \x1b[2m`;
-					while (k.length < 30) {
-						k += '.';
-					}
-					k += '\x1b[22m';
+					let k = `${key} \x1b[90;2m`;
+					k += pad(k, 30, '…');
+					k += '\x1b[37;22m';
 					let fmt = '';
 					if (/\bTime$/.test(key)) {
 						fmt = new Date(+value * 1000).toUTCString().replace(/\bGMT\b/, 'UTC');
@@ -92,10 +122,12 @@ async function run() {
 							const when = new Date(+value * 1000);
 							const dt = (+time - +when) / 1000;
 							fmt = si(dt, 's', { signcol: true, no_prefix: true, precision: 0 });
-							fmt += ` ago, at ${when.toUTCString().replace(/\bGMT\b/, 'UTC')}`;
+							fmt += ` ago at ${when.toUTCString().replace(/\bGMT\b/, 'UTC')}`;
 						}
-					} else if (/\b(frequency|rate)\b/.test(key)) {
-						fmt = si(+value, 'Hz', { signcol: true, sign: /\bshift\b/.test(key), precision: 3 });
+					} else if (/\b(RSSI history)\b/.test(key)) {
+						fmt = `[\x1b[9m${format_history(value)}\x1b[29m]`;
+					} else if (/\b(frequency|rate|LO offset)\b/.test(key)) {
+						fmt = si(+value, 'Hz', { signcol: true, sign: /\b(shift|offset)\b/.test(key), precision: 3 });
 					} else if (/\b(gain|RSSI|floor)\b/.test(key)) {
 						fmt = si(+value, 'dB', { signcol: true, no_prefix: true });
 					} else if (/\b(packets)\b/.test(key)) {
@@ -105,15 +137,50 @@ async function run() {
 					}
 					out.push(`${k} ${fmt}`);
 				}
-				out.push('');
-			});
+				return {
+					width: Math.max(...out.map(s => unansi(s).length), 0),
+					data: out
+				};
+			})
+			.map(block => {
+				block.data = block.data.map(line => `│ ${line + pad(line, block.width)} │`);
+				block.data.unshift(`┌─${pad('', block.width, '─')}─┐`);
+				block.data.push(`└─${pad('', block.width, '─')}─┘`);
+				return block;
+			})
+			.reduce((screen, block) => {
+				const append = (xs, c, r, x) => {
+					while (xs.length <= r) {
+						xs.push('');
+					}
+					xs[r] += pad(xs[r], c);
+					xs[r] += x;
+				};
+				while (screen.y < screen.data.length && unansi(screen.data[screen.y]).length + block.width > screen.width) {
+					screen.y++;
+				}
+				const col = screen.y < screen.data.length ? unansi(screen.data[screen.y]).length : 0;
+				for (let i = 0; i < block.data.length; ++i) {
+					append(screen.data, col, screen.y + i, block.data[i]);
+				}
+				return screen;
+			}, { data: [], width: process.stdout.columns || 160, height: process.stdout.rows || 45, y: 0 })
+			.data;
+		const out = [];
+		out.push(`\x1b[H\x1b[J\x1b[s\x1b[7l${new Date().toISOString()}`);
 		out.push('');
+		out.push(...blocks);
+		out.push('\x1b[7h\x1b[u');
 		const data = out.map(s => `${s}\n`).join('');
 		process.stdout.write(data);
 	};
-	setInterval(probe, 400);
-	setInterval(update, 200);
+	setInterval(probe, 500);
+	setInterval(update, 500);
+	process.stdout.on('resize', update);
 	regrpc.on('response', handle_response);
 }
+
+process.on('exit', () => process.stdout.write('\x1bc'));
+process.on('SIGINT', () => { process.stdout.write('\x1bc'); process.exit(0); });
 
 run().catch(err => console.error(`Failed: ${err.stack}`));
