@@ -42,7 +42,7 @@ const session = (regs, sock) => {
 		case 'F':
 			if (RX) {
 				prx = data;
-				regs.set('RX relative frequency shift', data / ref_freq - 1)
+				regs.set('RX relative frequency shift', 1 - data / ref_freq)
 					.catch(() => null);
 			} else if (TX) {
 				ptx = data;
