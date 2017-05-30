@@ -4,9 +4,10 @@ const gpredict_default_port = 6969;
 
 const default_ref_freq = 145.890e6;
 
-const RegRPC = require('regrpccli');
 const net = require('net');
 const random_id = require('random').chars('0123456789abcdef');
+
+const Autoreg = require('./autoreg');
 
 const gs = process.env.GS || process.argv[2];
 
@@ -17,11 +18,11 @@ if (!gs) {
 
 const gpredict = { host: '127.0.0.1', port: process.env.PORT || gpredict_default_port };
 
-const _regs = RegRPC.create({ name: `gp:${process.env.INSTANCE || random_id(8)}` });
+const regs = new Autoreg({ name: `gp:${process.env.INSTANCE || random_id(8)}` });
 
 const ref_freq = +(process.env.REF_FREQ || default_ref_freq);
 
-const session = (regs, sock) => {
+const session = sock => {
 
 	let RX = false;
 	let TX = false;
@@ -87,10 +88,9 @@ const session = (regs, sock) => {
 };
 
 async function run() {
-	const regs = (await _regs).bind(gs);
 	console.info('');
 	console.info(`TUNE gPredict RX+TX FREQUENCIES TO ${(ref_freq / 1e6).toFixed(6)}MHz!`);
-	const server = net.createServer(socket => session(regs, socket));
+	const server = net.createServer(socket => session(socket));
 	await new Promise((res, rej) => server.listen(gpredict.port, gpredict.host, 1, e => e ? rej(e) : res()));
 	console.info('');
 	console.log(`Server listening on ${gpredict.host}:${gpredict.port}`);
