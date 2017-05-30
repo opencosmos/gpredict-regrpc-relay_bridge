@@ -43,12 +43,10 @@ const session = sock => {
 		case 'F':
 			if (RX) {
 				prx = data;
-				regs.set('RX relative frequency shift', 1 - data / ref_freq)
-					.catch(() => null);
+				regs.set('RX relative frequency shift', 1 - data / ref_freq);
 			} else if (TX) {
 				ptx = data;
-				regs.set('TX relative frequency shift', data / ref_freq - 1)
-					.catch(() => null);
+				regs.set('TX relative frequency shift', data / ref_freq - 1);
 			}
 			return 'RPRT 0';
 		default:
