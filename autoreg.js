@@ -1,6 +1,6 @@
 const RegRPC = require('regrpccli');
 
-function Autoreg(...args) {
+function Autoreg(...con_args) {
 	let con = null;
 	let timer = null;
 	const close = () => {
@@ -14,20 +14,20 @@ function Autoreg(...args) {
 	};
 	const reconnect = () => {
 		close();
-		RegRPC.create(...args)
-			.then(
-				_con => { con = _con; },
-				err => {
-					console.error('Failed to connect to relay server');
-					console.error(err);
-					if (!timer) {
-						timer = setTimeout(reconnect, 1000);
-					}
-				});
+		RegRPC.create(...con_args)
+			.then(_con => { con = _con; })
+			.catch(err => {
+				console.error('Failed to connect to relay server');
+				console.error(err);
+				close();
+				if (!timer) {
+					timer = setTimeout(reconnect, 1000);
+				}
+			});
 	};
-	const set = (...args2) => {
+	const set = (...args) => {
 		if (con) {
-			con.set(...args2)
+			con.set(...args)
 				.catch(err => {
 					console.error('Failed to send regrpc command');
 					console.error(err);
