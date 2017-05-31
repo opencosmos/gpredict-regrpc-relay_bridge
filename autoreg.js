@@ -7,15 +7,20 @@ function Autoreg(...con_args) {
 		clearTimeout(timer);
 		timer = null;
 		if (con) {
-			const _con = con;
-			con = null;
-			_con.close();
+			try {
+				con.close();
+			} finally {
+				con = null;
+			}
 		}
 	};
 	const reconnect = () => {
 		close();
 		RegRPC.create(...con_args)
-			.then(_con => { con = _con; })
+			.then(_con => {
+				con = _con;
+				console.info('Connection to relay server established');
+			})
 			.catch(err => {
 				console.error('Failed to connect to relay server');
 				console.error(err);
@@ -26,15 +31,16 @@ function Autoreg(...con_args) {
 			});
 	};
 	const set = (...args) => {
-		if (con) {
-			con.set(...args)
-				.catch(err => {
-					console.error('Failed to send regrpc command');
-					console.error(err);
-					console.info('Reconnecting');
-					reconnect();
-				});
+		if (!con) {
+			return;
 		}
+		con.set(...args)
+			.catch(err => {
+				console.error('Failed to send regrpc command');
+				console.error(err && err.stack);
+				console.info('Reconnecting');
+				reconnect();
+			});
 	};
 	this.set = set;
 	this.close = close;
