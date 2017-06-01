@@ -7,7 +7,7 @@ const default_ref_freq = 145.890e6;
 const net = require('net');
 const random_id = require('random').chars('0123456789abcdef');
 
-const RegRPCPool = require('regrpcpool');
+const RegRPCCli = require('regrpccli');
 
 const gs = process.env.GS || process.argv[2];
 
@@ -18,7 +18,7 @@ if (!gs) {
 
 const gpredict = { host: '127.0.0.1', port: process.env.PORT || gpredict_default_port };
 
-const regs = new RegRPCPool({ name: `gp:${process.env.INSTANCE || random_id(8)}` });
+const regs = new RegRPCCli({ name: `gp:${process.env.INSTANCE || random_id(8)}` });
 
 const ref_freq = +(process.env.REF_FREQ || default_ref_freq);
 

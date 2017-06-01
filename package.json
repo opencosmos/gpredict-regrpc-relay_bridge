@@ -18,6 +18,6 @@
   "homepage": "https://github.com/opencosmos/socket-interface#readme",
   "dependencies": {
     "random": "github:battlesnake/randomjs",
-    "regrpcpool": "github:opencosmos/regrpcpool"
+    "regrpccli": "github:opencosmos/regrpccli.js"
   }
 }
