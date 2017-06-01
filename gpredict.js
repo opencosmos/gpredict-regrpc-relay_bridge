@@ -16,11 +16,6 @@ const udp = dgram.createSocket('udp6');
 
 const gs = process.env.GS || process.argv[2];
 
-if (!gs) {
-	console.error('No GS specified');
-	process.exit(1);
-}
-
 const ref_freq = +(process.env.REF_FREQ || default_ref_freq);
 
 const session = sock => {
@@ -47,7 +42,7 @@ const session = sock => {
 				udp.send(JSON.stringify([gs, 'RX relative frequency shift', 1 - data / ref_freq]), bridge.port, bridge.host);
 			} else if (TX) {
 				ptx = data;
-				udp.send(JSON.stringify([gs, 'TX relative frequency shift', data / ref_freq - 1]), bridge.port, bridge.host);
+				udp.send(JSON.stringify([gs, 'TX relative frequency shift', 1 - data / ref_freq]), bridge.port, bridge.host);
 			}
 			return 'RPRT 0';
 		default:
@@ -87,6 +82,9 @@ const session = sock => {
 };
 
 async function run() {
+	if (!gs) {
+		throw new Error('No GS specified');
+	}
 	console.info('');
 	console.info(`TUNE gPredict RX+TX FREQUENCIES TO ${(ref_freq / 1e6).toFixed(6)}MHz!`);
 	const server = net.createServer(session);
