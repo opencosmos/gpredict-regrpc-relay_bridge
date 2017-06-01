@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const default_ref_freq = 145.890e6;
+const max_relshift = 0.1;
 
 const net = require('net');
 
@@ -17,6 +18,14 @@ const udp = dgram.createSocket('udp6');
 const gs = process.env.GS || process.argv[2];
 
 const ref_freq = +(process.env.REF_FREQ || default_ref_freq);
+
+const set_shift = relshift => {
+	if (Math.abs(relshift) > max_relshift) {
+		throw new Error(`Relative shift is extreme (>10%), you probably misconfigured the reference frequency.  It should be ${ref_freq}`);
+	}
+	udp.send(JSON.stringify([gs, 'RX relative frequency shift', relshift]), bridge.port, bridge.host);
+	udp.send(JSON.stringify([gs, 'TX relative frequency shift', relshift]), bridge.port, bridge.host);
+};
 
 const session = sock => {
 
@@ -39,10 +48,10 @@ const session = sock => {
 		case 'F':
 			if (RX) {
 				prx = data;
-				udp.send(JSON.stringify([gs, 'RX relative frequency shift', 1 - data / ref_freq]), bridge.port, bridge.host);
+				set_shift(1 - data / ref_freq);
 			} else if (TX) {
 				ptx = data;
-				udp.send(JSON.stringify([gs, 'TX relative frequency shift', 1 - data / ref_freq]), bridge.port, bridge.host);
+				set_shift(data / ref_freq - 1);
 			}
 			return 'RPRT 0';
 		default:
