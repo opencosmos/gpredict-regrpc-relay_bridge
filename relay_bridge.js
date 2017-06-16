@@ -60,4 +60,5 @@ async function run() {
 run().catch(err => {
 	console.error('Failed to start');
 	console.log(err && err.stack);
+	process.exit(1);
 });
